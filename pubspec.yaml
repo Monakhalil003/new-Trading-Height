@@ -30,6 +30,7 @@ dependencies:
   sqflite: ^2.2.7
   path: ^1.8.3
   provider: ^6.1.2
+  permission_handler: ^10.2.0
 
 dev_dependencies:
   flutter_test:

@@ -6,8 +6,14 @@ import 'package:provider/provider.dart';
 import 'userViewModel.dart';
 import 'db_helper.dart';
 import 'user_repository.dart';
+import 'package:permission_handler/permission_handler.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Check and request storage permissions
+  checkPermissions();
+
   runApp(
     ChangeNotifierProvider(
       create: (context) => UserViewModel(),
@@ -15,6 +21,27 @@ void main() {
     ),
   );
 }
+
+// Function to check and request storage permissions
+Future<bool> _requestStoragePermission() async {
+  var status = await Permission.storage.status;
+  if (status.isDenied) {
+    // Request the permission
+    status = await Permission.storage.request();
+  }
+  return status.isGranted;
+}
+
+// Example usage
+void checkPermissions() async {
+  bool isGranted = await _requestStoragePermission();
+  if (isGranted) {
+    print("Storage permission granted!");
+  } else {
+    print("Storage permission denied.");
+  }
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -31,6 +58,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
+ 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
@@ -81,6 +109,7 @@ class SplashScreen extends StatelessWidget {
     );
   }
 }
+ 
 
 class WelcomeBackPage extends StatefulWidget {
   const WelcomeBackPage({super.key});
@@ -102,35 +131,20 @@ class _WelcomeBackPageState extends State<WelcomeBackPage> {
   bool _isAscending = true;
 
   @override
-  void initState() {
-    super.initState();
-    _filteredData = _data;
-  }
-
-  void _filterSearch(String query) {
-    if (query.isEmpty) {
-      setState(() {
-        _filteredData = _data;
-      });
-    } else {
-      setState(() {
-        _filteredData = _data
-            .where((item) =>
-                item['Name'].toLowerCase().contains(query.toLowerCase()) ||
-                item['ID'].toString().contains(query))
-            .toList();
-      });
-    }
-  }
-
-  void _sortData() {
-    setState(() {
-      _isAscending = !_isAscending;
-      _filteredData.sort((a, b) => _isAscending
-          ? a['ID'].compareTo(b['ID'])
-          : b['ID'].compareTo(a['ID']));
-    });
-  }
+void initState() { 
+  super.initState(); 
+  final userViewModel = Provider.of<UserViewModel>(context, listen: false);
+   userViewModel.loadUsers(); 
+   }
+    void _filterSearch(String query) { 
+      final userViewModel = Provider.of<UserViewModel>(context, listen: false);
+       userViewModel.filterUsers(query);
+        } 
+        void _sortData() { 
+          final userViewModel = Provider.of<UserViewModel>(context, listen: false); 
+          userViewModel.sortUsers(_isAscending); setState(() { 
+            
+            _isAscending = !_isAscending; }); }
 
   void _viewDetails(int id) {
     showDialog(
@@ -244,6 +258,7 @@ Widget build(BuildContext context) {
                           ),
                         ),
                         Text(
+                          
                           formattedDate,
                           style: const TextStyle(
                             fontSize: 16,
@@ -339,7 +354,7 @@ Widget build(BuildContext context) {
             const SizedBox(height: 20),
             Consumer<UserViewModel>(
               builder: (context, userViewModel, child) {
-                final users = userViewModel.users;
+                final users = userViewModel.filteredUsers;
                 return SingleChildScrollView(
                   child: DataTable(
                     columns: const [

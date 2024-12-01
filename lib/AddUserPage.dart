@@ -160,22 +160,29 @@ class _AddUserPageState extends State<AddUserPage> {
     );
   }
 
- void _addUser() {
-  if (_nameController.text.trim().isEmpty ||
-      _validityController.text.isEmpty) {
+void _addUser() {
+  final userName = _nameController.text.trim();
+  final validity = _validityController.text.trim();
+  final note = _noteController.text.trim();
+  final endDate = _endDateController.text.trim();
+
+  if (userName.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Please fill in all required fields')),
+      const SnackBar(content: Text('Name cannot be empty!')),
     );
     return;
   }
 
   final user = {
-    'name': _nameController.text.trim(),
-    'timeLeft': _validityController.text.isEmpty ? 'Lifetime' : _validityController.text,
-    'actions': _noteController.text.isEmpty ? 'Active' : _noteController.text,
+    'name': userName,
+    'timeLeft': validity.isEmpty ? 'Lifetime' : validity,
+    'note': note.isEmpty ? 'Active' : note,
+    'endDate': endDate.isEmpty ? 'N/A' : endDate,
+    'actions': '', // Provide default value for actions
   };
 
-  print("Adding User: $user");
+  print("User Data before adding: $user");
+
   final userViewModel = Provider.of<UserViewModel>(context, listen: false);
 
   userViewModel.addUser(user).then((_) {
@@ -189,4 +196,5 @@ class _AddUserPageState extends State<AddUserPage> {
     );
   });
 }
+
 }
