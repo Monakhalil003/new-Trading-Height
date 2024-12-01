@@ -48,6 +48,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'My App',
       theme: ThemeData(
         primaryColor: const Color(0xFF273562),
@@ -150,17 +151,39 @@ void initState() {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        final member = _filteredData.firstWhere((element) => element['ID'] == id);
+
+        // Get the member, use orElse to provide a default empty map if not found
+        final userViewModel = Provider.of<UserViewModel>(context, listen: false);
+        final member = userViewModel.filteredUsers.firstWhere(
+                (element) => element['id'] == id,
+            orElse: () => {} // Return an empty map if not found
+        );
+
+        // If member is empty, show an error or return early
+        if (member.isEmpty) {
+          return AlertDialog(
+            title: const Text('Error'),
+            content: const Text('Member not found.'),
+            actions: [
+              TextButton(
+                child: const Text('Close'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          );
+        }
+
         return AlertDialog(
           title: Text('Details for ${member['Name']}'),
           content: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('ID: ${member['ID'] ?? 'N/A'}'),
-    Text('Name: ${member['Name'] ?? 'Unknown'}'),
-    Text('Time Left: ${member['TimeLeft'] ?? 'No Data'}'),
-    Text('Status: ${member['Actions'] ?? 'Unknown'}'),
+              Text('ID: ${member['id'] ?? 'N/A'}'),
+              Text('Name: ${member['name'] ?? 'Unknown'}'),
+              Text('Time Left: ${member['timeLeft'] ?? 'No Data'}'),
             ],
           ),
           actions: [
@@ -176,10 +199,21 @@ void initState() {
     );
   }
 
-  void _deleteMember(int id) {
+
+  void _refreshData() async {
+    final allUsers = await DatabaseHelper().getUsers(); // Fetch updated data
+    setState(() {
+      _filteredData = allUsers; // Update the UI with the latest data
+    });
+  }
+  void _deleteMember(int id) async {
+    await DatabaseHelper().deleteUser(id);
+    _refreshData();
     setState(() {
       _filteredData.removeWhere((item) => item['ID'] == id);
+
     });
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Member Deleted')),
     );
@@ -258,7 +292,7 @@ Widget build(BuildContext context) {
                           ),
                         ),
                         Text(
-                          
+
                           formattedDate,
                           style: const TextStyle(
                             fontSize: 16,
@@ -334,12 +368,14 @@ Widget build(BuildContext context) {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Members Subscription Details',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 20,
-                    color: const Color(0xFFFFA600),
-                    fontWeight: FontWeight.bold,
+                Flexible(
+                  child: Text(
+                    'Members Subscription Details',
+                    style: GoogleFonts.montserrat(
+                      fontSize: 20,
+                      color: const Color(0xFFFFA600),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -355,6 +391,7 @@ Widget build(BuildContext context) {
             Consumer<UserViewModel>(
               builder: (context, userViewModel, child) {
                 final users = userViewModel.filteredUsers;
+                print('Users--------------------------------: $users');
                 return SingleChildScrollView(
                   child: DataTable(
                     columns: const [
@@ -364,36 +401,36 @@ Widget build(BuildContext context) {
                       DataColumn(label: Text('Actions', style: TextStyle(color: Colors.white))),
                     ],
                    rows: users.map((member) {
-  return DataRow(cells: [
-    DataCell(Text(member['ID']?.toString() ?? 'N/A', style: const TextStyle(color: Colors.white))),
-    DataCell(Text(member['Name'] ?? 'Unknown', style: const TextStyle(color: Colors.white))),
-    DataCell(Text(member['TimeLeft'] ?? 'No Data', style: const TextStyle(color: Colors.white))),
-    DataCell(
-      PopupMenuButton<String>(
-        color: Colors.white,
-        icon: const Icon(Icons.more_vert, color: Colors.white),
-        onSelected: (String value) {
-          if (value == 'view') {
-            _viewDetails(member['ID']);
-          } else if (value == 'delete') {
-            _deleteMember(member['ID']);
-          }
-        },
-        itemBuilder: (BuildContext context) => [
-          const PopupMenuItem<String>(
-            value: 'view',
-            child: Text('View Details', style: TextStyle(color: Colors.black)),
-          ),
-          const PopupMenuItem<String>(
-            value: 'delete',
-            child: Text('Delete', style: TextStyle(color: Colors.black)),
-          ),
-        ],
-      ),
-    ),
-  ]);
-}).toList(),
-
+                    return DataRow(cells: [
+                      DataCell(Text(member['id']?.toString() ?? 'N/A', style: const TextStyle(color: Colors.white))),
+                      DataCell(Text(member['name'] ?? 'Unknown', style: const TextStyle(color: Colors.white))),
+                      DataCell(Text(member['timeLeft'] ?? 'No Data', style: const TextStyle(color: Colors.white))),
+                      DataCell(
+                        PopupMenuButton<String>(
+                          color: Colors.white,
+                          icon: const Icon(Icons.more_vert, color: Colors.white),
+                          onSelected: (String value) {
+                            if (value == 'view') {
+                              _viewDetails(member['id']);
+                            } else if (value == 'delete') {
+                              _deleteMember(member['id']);
+                            }
+                          },
+                          itemBuilder: (BuildContext context) => [
+                            const PopupMenuItem<String>(
+                              value: 'view',
+                              child: Text('View Details', style: TextStyle(color: Colors.black)),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'delete',
+                              child: Text('Delete', style: TextStyle(color: Colors.black)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ]);
+                  }).toList(),
+                  
                   ),
                 );
               },

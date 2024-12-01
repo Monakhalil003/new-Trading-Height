@@ -22,7 +22,7 @@ class DatabaseHelper {
       path,
       version: 4,
       onCreate: _onCreate,
-      onUpgrade: _onUpgrade, 
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -34,40 +34,45 @@ class DatabaseHelper {
       name TEXT NOT NULL,
       timeLeft TEXT NOT NULL,
       validity TEXT NOT NULL,
-       actions TEXT, 
+      actions TEXT, 
       note TEXT,
-      endDate TEXT -- Include the endDate column here
+      endDate TEXT
     )
   ''');
-  
+
   print("Table created. Schema:");
   List<Map<String, dynamic>> result = await db.rawQuery("PRAGMA table_info(users);");
-  print(result); 
+  print(result);
 
 
 }
 
   // Insert a user with validation for timeLeft
- Future<int> insertUser(Map<String, dynamic> user) async {
-  final db = await database;
+  Future<int> insertUser(Map<String, dynamic> user) async {
+    final db = await database;
 
-// Log the user data before insertion
-  print("Inserting user: $user");
-  if (user['timeLeft'] == null || user['timeLeft'].isEmpty) {
-    print('Error: timeLeft is null or empty for user: ${user['name']}');
-    return -1; 
+    // Log the user data before insertion
+    print("Inserting user: $user");
+
+    // Set a default value for timeLeft
+    if (user['timeLeft'] == null || user['timeLeft'].isEmpty) {
+      print('Error: timeLeft is null or empty for user: ${user['name']}');
+      return -1;
+    }
+
+    user['actions'] = user['actions'] ?? ''; // Ensure actions is not null
+
+    // Set a default value for validity
+    user['validity'] = user['validity'] ?? "valid";
+
+    // Calculate expiration timestamp for timeLeft
+    user['timeLeft'] = _calculateExpirationTimestamp(user['timeLeft']);
+
+    print("Inserting user with data: $user");
+
+    return await db.insert('users', user);
   }
-  user['actions'] = user['actions'] ?? ''; 
- 
-  String validity = user['validity'] ?? "valid";
-  user['validity'] = validity;
-  
-  
-  user['timeLeft'] = _calculateExpirationTimestamp(user['timeLeft']);
 
-  print("Inserting user with data: $user");
-  return await db.insert('users', user);
-}
 
   // Calculate expiration timestamp for timeLeft
   String _calculateExpirationTimestamp(String timeLeft) {
@@ -83,7 +88,7 @@ class DatabaseHelper {
       return DateTime(9999, 12, 31).toIso8601String();
     } else {
       print('Error: Invalid timeLeft format: $timeLeft');
-      return DateTime.now().toIso8601String(); 
+      return DateTime.now().toIso8601String();
     }
   }
 
@@ -94,7 +99,7 @@ class DatabaseHelper {
     } else if (timeLeft.contains("(expired)")) {
       return "expired";
     }
-    return "unknown"; 
+    return "unknown";
   }
 
 // Get all valid users (filter expired)
@@ -102,7 +107,7 @@ Future<List<Map<String, dynamic>>> getUsers() async {
   final db = await database;
   final now = DateTime.now();
 
-  final users = await db.query('users'); 
+  final users = await db.query('users');
   print("Fetched users from database: $users");
 
   final mutableUsers = users.map((user) => Map<String, dynamic>.from(user)).toList();
@@ -143,7 +148,7 @@ Future<List<Map<String, dynamic>>> getUsers() async {
     try {
       if (user['timeLeft'] == null || user['timeLeft'].isEmpty) {
         print('Error: timeLeft is null or empty for user: ${user['name']}');
-        return -1; 
+        return -1;
       }
 
       user['timeLeft'] = _calculateExpirationTimestamp(user['timeLeft']);
@@ -170,7 +175,7 @@ Future<List<Map<String, dynamic>>> getUsers() async {
     );
   }
 
-  // Clean up expired users 
+  // Clean up expired users
   Future<void> cleanUpExpiredUsers() async {
     final db = await database;
     final now = DateTime.now().toIso8601String();
@@ -182,7 +187,7 @@ Future<List<Map<String, dynamic>>> getUsers() async {
     );
   }
 
-  // Clear all users from the database 
+  // Clear all users from the database
   Future<void> clearDatabase() async {
     final db = await database;
     await db.delete('users');
@@ -195,7 +200,7 @@ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
   if (oldVersion < 3) {
     await db.execute('ALTER TABLE users ADD COLUMN endDate TEXT');
   }
- 
+
   print("Database upgraded to version $newVersion. Schema:");
   List<Map<String, dynamic>> result = await db.rawQuery("PRAGMA table_info(users);");
   print(result);

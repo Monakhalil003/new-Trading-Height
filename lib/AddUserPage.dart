@@ -179,6 +179,7 @@ void _addUser() {
     'note': note.isEmpty ? 'Active' : note,
     'endDate': endDate.isEmpty ? 'N/A' : endDate,
     'actions': '', // Provide default value for actions
+    'validity': 'valid',
   };
 
   print("User Data before adding: $user");

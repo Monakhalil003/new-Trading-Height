@@ -29,6 +29,9 @@ class UserViewModel extends ChangeNotifier {
       return;
     }
 
+    if (user['validity'] == null || user['validity'].isEmpty) {
+      user['validity'] = 'valid'; // Default value for validity
+    }
     if (user['timeLeft'] == null || user['timeLeft'].isEmpty) {
       print("Warning: timeLeft is missing. Setting default to 'Lifetime'.");
       user['timeLeft'] = 'Lifetime'; 
