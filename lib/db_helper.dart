@@ -1,9 +1,13 @@
+
+import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:awesome_notifications/awesome_notifications.dart';
 import 'dart:async';
 
 class DatabaseHelper {
   static Database? _database;
+
 
   Future<Database> get database async {
     if (_database != null) {
@@ -20,7 +24,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -32,11 +36,11 @@ class DatabaseHelper {
     CREATE TABLE users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      timeLeft TEXT NOT NULL,
+      startTime TEXT,
       validity TEXT NOT NULL,
       actions TEXT, 
       note TEXT,
-      endDate TEXT
+      endTime TEXT
     )
   ''');
 
@@ -54,19 +58,14 @@ class DatabaseHelper {
     // Log the user data before insertion
     print("Inserting user: $user");
 
-    // Set a default value for timeLeft
-    if (user['timeLeft'] == null || user['timeLeft'].isEmpty) {
-      print('Error: timeLeft is null or empty for user: ${user['name']}');
-      return -1;
-    }
-
     user['actions'] = user['actions'] ?? ''; // Ensure actions is not null
 
     // Set a default value for validity
     user['validity'] = user['validity'] ?? "valid";
 
     // Calculate expiration timestamp for timeLeft
-    user['timeLeft'] = _calculateExpirationTimestamp(user['timeLeft']);
+    user['startTime'] = DateTime.now().toIso8601String();
+    user['endTime'] = _calculateExpirationTimestamp(user['validity']);
 
     print("Inserting user with data: $user");
 
@@ -93,10 +92,10 @@ class DatabaseHelper {
   }
 
   // Extract validity from timeLeft
-  String _getValidity(String timeLeft) {
-    if (timeLeft.contains("(valid)")) {
+  String _getValidity(String endTime) {
+    if (endTime.contains("(valid)")) {
       return "valid";
-    } else if (timeLeft.contains("(expired)")) {
+    } else if (endTime.contains("(expired)")) {
       return "expired";
     }
     return "unknown";
@@ -115,24 +114,30 @@ Future<List<Map<String, dynamic>>> getUsers() async {
   return mutableUsers.map((user) {
     user['id'] = user['id'] ?? 'NA';
     user['name'] = user['name'] ?? 'unknown';
-    user['timeLeft'] = user['timeLeft'] ?? 'no date';
     user['actions'] = user['actions'] ?? 'N/A';
     user['note'] = user['note'] ?? 'N/A';
-    user['endDate'] = user['endDate'] ?? 'N/A';
+    user['endTime'] = user['endTime'] ?? 'N/A';
+    user['startTime'] = user['startTime'] ?? 'N/A';
+    user['endTime'] = user['endTime'] ?? 'N/A';
+
+     // Calculate the time left or check if expired
+    String timeLeft = getTimeLeft(user['endTime']);
+    user['timeLeft'] = timeLeft; 
+
     return user;
   }).where((user) {
     try {
-      final timeLeft = user['timeLeft'] as String?;
+      final endTime = user['endTime'] as String?;
       final validity = user['validity'] as String?;
 
-      if (timeLeft == null || timeLeft.isEmpty || validity == null) {
+      if (endTime == null || endTime.isEmpty || validity == null) {
         print("Error: Invalid or missing timeLeft/validity for user ${user['id']}");
         return false;
       }
 
       if (validity == "expired") return false;
 
-      final expiry = DateTime.tryParse(timeLeft);
+      final expiry = DateTime.tryParse(endTime);
       return expiry != null && expiry.isAfter(now);
     } catch (e) {
       print("Error processing user ${user['id']}: $e");
@@ -146,12 +151,7 @@ Future<List<Map<String, dynamic>>> getUsers() async {
     final db = await database;
 
     try {
-      if (user['timeLeft'] == null || user['timeLeft'].isEmpty) {
-        print('Error: timeLeft is null or empty for user: ${user['name']}');
-        return -1;
-      }
-
-      user['timeLeft'] = _calculateExpirationTimestamp(user['timeLeft']);
+      user['endTime'] = _calculateExpirationTimestamp(user['validity']);
 
       return await db.update(
         'users',
@@ -164,6 +164,121 @@ Future<List<Map<String, dynamic>>> getUsers() async {
       return -1;
     }
   }
+
+String getTimeLeft(String endTime) {
+  final now = DateTime.now();
+  final expiry = DateTime.tryParse(endTime);
+
+  if (expiry == null) {
+    
+    return "Invalid date";
+  }
+
+  if (expiry.isBefore(now)) {
+  
+    return "Expired";
+  }
+  if (expiry.isAfter(now.add(Duration(days: 365 * 100)))) { 
+  }
+
+  // Calculate the remaining time
+  final duration = expiry.difference(now);
+  if (duration.inDays > 0) {
+    return "${duration.inDays} day${duration.inDays > 1 ? 's' : ''} left";
+  } else if (duration.inHours > 0) {
+    return "${duration.inHours} hour${duration.inHours > 1 ? 's' : ''} left";
+  } else if (duration.inMinutes > 0) {
+    return "${duration.inMinutes} minute${duration.inMinutes > 1 ? 's' : ''} left";
+  } else {
+    return "Less than a minute left";
+  }
+}
+Future<void> initializeNotifications() async {
+ 
+  await AwesomeNotifications().initialize(
+    'resource://drawable/res_app_icon', 
+    [
+      NotificationChannel(
+        channelKey: 'expiry_notifications', 
+        channelName: 'Expiry Notifications', 
+        channelDescription: 'Notify about expiring subscriptions', 
+        defaultColor: Color(0xFF9D50DD),
+        ledColor: Colors.white, 
+        importance: NotificationImportance.High, 
+        
+      ),
+    ],
+  );
+}
+Future<void> showNotification({
+  required int id,
+  required String title,
+  required String body,
+}) async {
+
+  await AwesomeNotifications().createNotification(
+    content: NotificationContent(
+      id: id, 
+      channelKey: 'expiry_notifications',
+      title: title, 
+      body: body, 
+      notificationLayout: NotificationLayout.Default, 
+      
+    ),
+  );
+}
+
+
+Future<void> checkAndNotifyUsers() async {
+  final db = await database;
+  final users = await db.query('users'); 
+
+  final now = DateTime.now();
+
+  for (var user in users) {
+    print('User  data: $user');
+
+    
+    if (user['id'] == null || user['endTime'] == null) {
+      print('User  ID or endTime is null for user: $user');
+      continue; 
+    }
+
+    DateTime? endTime;
+    try {
+      endTime = DateTime.tryParse(user['endTime'] as String);
+      if (endTime == null) {
+        print('Error parsing endTime for user: ${user['name']}');
+        continue; 
+      }
+    } catch (e) {
+      print('Error parsing endTime for user: ${user['name']}, error: $e');
+      continue; 
+    }
+
+    final duration = endTime.difference(now);
+    final daysLeft = duration.inDays;
+
+    if (duration.isNegative) {
+      
+      await showNotification(
+        id: user['id'] as int, 
+        title: 'Subscription Expired',
+        body: '${user['name']}, your subscription has expired!',
+      );
+    } else if (daysLeft < 3) {
+      
+      await showNotification(
+        id: user['id'] as int, 
+        title: 'Subscription Expiry Reminder',
+        body: '${user['name']}, your subscription will expire in $daysLeft days!',
+      );
+    }
+  }
+}
+
+
+
 
   // Delete a user by ID
   Future<int> deleteUser(int id) async {
@@ -182,7 +297,7 @@ Future<List<Map<String, dynamic>>> getUsers() async {
 
     await db.delete(
       'users',
-      where: 'timeLeft < ?',
+      where: 'endTime < ?',
       whereArgs: [now],
     );
   }
@@ -198,7 +313,10 @@ Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     await db.execute('ALTER TABLE users ADD COLUMN note TEXT');
   }
   if (oldVersion < 3) {
-    await db.execute('ALTER TABLE users ADD COLUMN endDate TEXT');
+    await db.execute('ALTER TABLE users ADD startTime TEXT');
+  }
+  if (oldVersion < 4) {
+    await db.execute('ALTER TABLE users ADD endTime TEXT');
   }
 
   print("Database upgraded to version $newVersion. Schema:");

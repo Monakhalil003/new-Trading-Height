@@ -16,9 +16,8 @@ Future<List<Map<String, dynamic>>> getUsers() async {
   for (var user in mutableUsers) {
     user['id'] = user['id'] ?? 'NA';
     user['name'] = user['name'] ?? 'unknown';
-    user['timeLeft'] = user['timeLeft'] ?? 'no date';
     user['note'] = user['note'] ?? 'N/A';
-    user['endDate'] = user['endDate'] ?? 'N/A';
+    user['endTime'] = user['endTime'] ?? 'N/A';
   }
 
   return mutableUsers;
@@ -58,4 +57,47 @@ Future<List<Map<String, dynamic>>> getUsers() async {
       whereArgs: [id]
     );
   }
+  // Calculate the time left dynamically based on 'endTime'
+  String _calculateTimeLeft(String endTime) {
+    try {
+      final endDateTime = DateTime.tryParse(endTime);
+      final now = DateTime.now();
+      
+      if (endDateTime == null) {
+        return "Invalid Date";  // If the endTime is invalid
+      }
+
+      if (endDateTime.isBefore(now)) {
+        return "Expired";  // If the time has passed, it's expired
+      }
+
+      final difference = endDateTime.difference(now);
+      if (difference.isNegative) {
+        return "Expired"; // If somehow the difference is negative (edge case)
+      }
+
+      final hoursLeft = difference.inHours;
+      final minutesLeft = difference.inMinutes % 60;
+
+      // Returning a more readable format for the remaining time
+      if (hoursLeft > 0) {
+        return "$hoursLeft hours and $minutesLeft minutes left";
+      } else {
+        return "$minutesLeft minutes left";
+      }
+    } catch (e) {
+      print("Error calculating time left: $e");
+      return "Error";  // In case of any exception
+    }
+  }
+
+  // Example of how you would use _calculateTimeLeft when displaying users
+  List<Map<String, dynamic>> displayUsersWithTimeLeft(List<Map<String, dynamic>> users) {
+    for (var user in users) {
+      String endTime = user['endDate'] ?? '';  // endDate is used here, adjust if needed
+      user['timeLeft'] = _calculateTimeLeft(endTime);  // Calculate time left dynamically
+    }
+    return users;
+  }
+
 }

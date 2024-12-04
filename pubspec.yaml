@@ -31,6 +31,7 @@ dependencies:
   path: ^1.8.3
   provider: ^6.1.2
   permission_handler: ^10.2.0
+  awesome_notifications: ^0.8.2
 
 dev_dependencies:
   flutter_test:

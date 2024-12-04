@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'user_repository.dart';
+import 'db_helper.dart';
 
 class UserViewModel extends ChangeNotifier {
   final UserRepository _repository = UserRepository();
+  final DatabaseHelper _dbHelper = DatabaseHelper();
+
 
   List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _filteredUsers = [];
@@ -15,6 +18,14 @@ class UserViewModel extends ChangeNotifier {
   Future<void> loadUsers() async {
     print("Loading users from the repository...");
     _users = await _repository.getUsers();
+   
+  for (var user in _users) {
+    final endTime = user['endTime'];
+    if (endTime != null && endTime != 'Unknown') {
+      user['timeLeft'] = _dbHelper.getTimeLeft(endTime); 
+    }
+  }
+
     _filteredUsers = List.from(_users);
     print("Loaded users: $_users");
     notifyListeners();
@@ -30,13 +41,20 @@ class UserViewModel extends ChangeNotifier {
     }
 
     if (user['validity'] == null || user['validity'].isEmpty) {
-      user['validity'] = 'valid'; // Default value for validity
-    }
-    if (user['timeLeft'] == null || user['timeLeft'].isEmpty) {
-      print("Warning: timeLeft is missing. Setting default to 'Lifetime'.");
-      user['timeLeft'] = 'Lifetime'; 
+      user['validity'] = 'valid'; 
     }
 
+     if (user['endTime'] == null || user['endTime'].isEmpty) {
+    print("Warning: endTime is missing.");
+    user['endTime'] = 'Unknown';  
+  }
+
+   if (user['timeLeft'] != null) {
+    user.remove('timeLeft');  
+  }
+  if (user['endDate'] != null) {
+  user.remove('endDate');  
+}
     print("Adding user with final data: $user");
     await _repository.addUser(user);
     await loadUsers(); 
