@@ -58,9 +58,9 @@ class DatabaseHelper {
     // Log the user data before insertion
     print("Inserting user: $user");
 
-    user['actions'] = user['actions'] ?? ''; // Ensure actions is not null
+    user['actions'] = user['actions'] ?? ''; 
 
-    // Set a default value for validity
+   
     user['validity'] = user['validity'] ?? "valid";
 
     // Calculate expiration timestamp for timeLeft
